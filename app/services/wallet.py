@@ -108,6 +108,8 @@ def present_credential(holder_did: str, password: str, index: int = 0):
             return {"error": "Credential index out of range."}
 
         vc = credentials[index]
+         # Aquí forzamos que el id de credentialSubject sea igual al holder_did
+        vc["credentialSubject"]["id"] = holder_did
 
         holder_key_path = os.path.join("data", "holder_identity.json")
         if not os.path.exists(holder_key_path):
