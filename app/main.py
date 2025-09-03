@@ -6,7 +6,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.responses import RedirectResponse
 
-from app.routers import holder, oid4vc, verifier_ebsi,  presentations
+from app.routers import holder, oid4vc, verifier_ebsi, presentations
 
 ALLOWED_HOSTS = [h for h in os.getenv("ALLOWED_HOSTS", "*").split(",") if h]
 SERVER_BASE_URL = os.getenv("SERVER_BASE_URL", "").rstrip("/")
