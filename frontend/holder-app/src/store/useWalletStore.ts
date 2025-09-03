@@ -9,7 +9,8 @@ interface WalletState {
 
 export const useWalletStore = create<WalletState>((set) => ({
   holderDid: localStorage.getItem('holderDid') || '',
-  password: 'default',
+  // Start with an empty password so the user must provide one
+  password: '',
   setHolderDid: (did) => {
     localStorage.setItem('holderDid', did);
     set({ holderDid: did });

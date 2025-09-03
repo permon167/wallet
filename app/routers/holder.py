@@ -6,6 +6,14 @@ import json  # ✅ Asegúrate de tener esto
 
 router = APIRouter()
 
+
+def _validate_password(password: str) -> None:
+    """Simple password validation enforcing presence and length."""
+    if not password:
+        raise ValueError("Se requiere contraseña")
+    if len(password) < 8:
+        raise ValueError("La contraseña debe tener al menos 8 caracteres")
+
 @router.post("/create-did-jwk")
 async def create_did_jwk():
     identity = holder.create_did_jwk()
@@ -26,33 +34,47 @@ class StoreCredentialRequest(BaseModel):
 @router.post("/store-credential")
 async def store_credential_endpoint(input: StoreCredentialRequest):
     try:
+        _validate_password(input.password)
         result = holder.store_credential(input.holder_did, input.message, input.password)
         return {"status": "success", "message": "Credencial almacenada correctamente", "total": result.get("total", 0)}
+    except ValueError as e:
+        return {"status": "error", "message": str(e)}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
 
 @router.post("/get-latest-credential")
 async def get_latest_credential(request: Request):
-    body = await request.json()
-    holder_did = body["holder_did"]
-    password = body["password"]
+    try:
+        body = await request.json()
+        holder_did = body["holder_did"]
+        password = body["password"]
+        _validate_password(password)
 
-    creds = holder.load_credentials(holder_did, password)
-    if not creds:
-        return JSONResponse(status_code=404, content={"error": "No hay credenciales"})
+        creds = holder.load_credentials(holder_did, password)
+        if not creds:
+            return JSONResponse(status_code=404, content={"error": "No hay credenciales"})
 
-    return {"vc": creds[-1]}
+        return {"vc": creds[-1]}
+    except KeyError as e:
+        return JSONResponse(status_code=400, content={"error": f"Falta campo requerido: {str(e)}"})
+    except ValueError as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
 
 @router.post("/credentials")
 async def get_all_credentials(request: Request):
     try:
         body = await request.json()
         holder_did = body["holder_did"]
-        password = body.get("password", "default")  # usa "default" por defecto
+        password = body["password"]
+        _validate_password(password)
 
         creds = holder.load_credentials(holder_did, password)
         return {"credentials": creds}
+    except KeyError as e:
+        return JSONResponse(status_code=400, content={"error": f"Falta campo requerido: {str(e)}"})
+    except ValueError as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
     except FileNotFoundError:
         return JSONResponse(status_code=404, content={"error": "Wallet no encontrada"})
     except Exception as e:
@@ -64,7 +86,8 @@ async def delete_credential(request: Request):
     try:
         body = await request.json()
         holder_did = body["holder_did"]
-        password = body.get("password", "default")
+        password = body["password"]
+        _validate_password(password)
         index = body["index"]
 
         creds = holder.load_credentials(holder_did, password)
@@ -80,6 +103,10 @@ async def delete_credential(request: Request):
             json.dump(encrypted, f, indent=2)
 
         return {"message": "Credencial eliminada", "total": len(creds)}
+    except KeyError as e:
+        return JSONResponse(status_code=400, content={"error": f"Falta campo requerido: {str(e)}"})
+    except ValueError as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
     except Exception as e:
         return JSONResponse(status_code=400, content={"error": str(e)})
 
@@ -91,6 +118,7 @@ async def present_credential_jwt(request: Request):
         data = await request.json()
         holder_did = data["holder_did"]
         password = data["password"]
+        _validate_password(password)
         index = int(data.get("index", 0))
         aud = data["aud"]          # <- obligatorio
         nonce = data["nonce"]      # <- obligatorio
@@ -108,6 +136,8 @@ async def present_credential_jwt(request: Request):
         return {"vp_jwt": vp_jwt}
     except KeyError as e:
         return JSONResponse(status_code=400, content={"error": f"Falta campo requerido: {str(e)}"})
+    except ValueError as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
     except Exception as e:
         return JSONResponse(status_code=400, content={"error": str(e)})
 
@@ -119,12 +149,17 @@ async def decode_credential(request: Request):
         body = await request.json()
         holder_did = body["holder_did"]
         password = body["password"]
+        _validate_password(password)
         index = body.get("index", 0)
 
         from app.services import holder
         data = holder.decode_jwt_credential(holder_did, password, index)
 
         return JSONResponse(content=data)
+    except KeyError as e:
+        return JSONResponse(status_code=400, content={"error": f"Falta campo requerido: {str(e)}"})
+    except ValueError as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
     except Exception as e:
         return JSONResponse(status_code=400, content={"error": str(e)})
 
@@ -138,7 +173,8 @@ async def get_jwt_credential(request: Request):
     try:
         body = await request.json()
         holder_did = body["holder_did"]
-        password = body.get("password", "default")
+        password = body["password"]
+        _validate_password(password)
         index = int(body.get("index", 0))
 
         # Carga de credenciales desde tu almacenamiento
@@ -171,5 +207,7 @@ async def get_jwt_credential(request: Request):
         return {"jwt": vc_jwt}
     except KeyError as e:
         return JSONResponse(status_code=400, content={"error": f"Falta campo requerido: {str(e)}"})
+    except ValueError as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
     except Exception as e:
         return JSONResponse(status_code=400, content={"error": str(e)})
