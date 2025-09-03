@@ -6,6 +6,7 @@ import uuid
 from datetime import datetime
 
 import jwt  # PyJWT
+import httpx
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -265,3 +266,41 @@ def decode_jwt_credential(holder_did: str, password: str, index: int = 0) -> dic
         "expiration": decoded.get("exp"),
         "raw": decoded
     }
+
+
+# === DIDComm signed request ==================================================
+
+async def send_signed_request_to_issuer(issuer_did: str) -> dict:
+    """Envía una petición DIDComm firmada al emisor y devuelve su respuesta.
+
+    El parámetro ``issuer_did`` se utiliza como URL del emisor. El mensaje
+    contiene un JWT firmado con la clave del holder.
+    """
+
+    try:
+        with open("data/holder_jwk_private.pem", "rb") as key_file:
+            private_key = load_pem_private_key(key_file.read(), password=None)
+
+        with open("data/holder_jwk_identity.json", "r") as f:
+            identity = json.load(f)
+
+        holder_did = identity["did"]
+        now = int(time.time())
+        payload = {
+            "iss": holder_did,
+            "sub": issuer_did,
+            "iat": now,
+            "exp": now + 600,
+            "msg": "signed-request"
+        }
+
+        token = jwt.encode(payload, private_key, algorithm="ES256", headers={"kid": holder_did})
+
+        async with httpx.AsyncClient(timeout=10) as client:
+            response = await client.post(issuer_did, json={"jwt": token})
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPError as e:
+        return {"error": f"HTTP error: {str(e)}"}
+    except Exception as e:
+        return {"error": str(e)}
