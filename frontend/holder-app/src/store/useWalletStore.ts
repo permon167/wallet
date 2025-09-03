@@ -8,12 +8,16 @@ interface WalletState {
 }
 
 export const useWalletStore = create<WalletState>((set) => ({
-  holderDid: localStorage.getItem('holderDid') || '',
-  password: 'default',
+  holderDid:
+    localStorage.getItem('holderDid') || localStorage.getItem('holder_did') || '',
+  password: localStorage.getItem('wallet_password') || '',
   setHolderDid: (did) => {
     localStorage.setItem('holderDid', did);
     set({ holderDid: did });
   },
-  setPassword: (pw) => set({ password: pw }),
+  setPassword: (pw) => {
+    localStorage.setItem('wallet_password', pw);
+    set({ password: pw });
+  },
 }));
 
