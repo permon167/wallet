@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Wallet Holder</title>
+</head>
+<body>
+  <h1>Credenciales</h1>
+  <div>
+    <label>DID: <input id="holderDid" /></label>
+    <label>Contraseña: <input id="password" type="password" /></label>
+    <button onclick="loadCredentials()">Cargar</button>
+  </div>
+  <ul id="credList"></ul>
+  <div id="selected"></div>
+  <pre id="details"></pre>
+  <h2>Presentación</h2>
+  <div>
+    <label>aud: <input id="aud" /></label>
+    <label>nonce: <input id="nonce" /></label>
+    <label>send: <input type="checkbox" id="send" /></label>
+    <button onclick="present()">Presentar</button>
+  </div>
+  <h3>VP JWT</h3>
+  <pre id="vpjwt"></pre>
+  <div id="postresult"></div>
+  <script src="script.js"></script>
+</body>
+</html>

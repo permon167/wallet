@@ -68,37 +68,46 @@ def load_wallet_credentials(holder_did: str, password: str) -> list[str]:
     return out
 
 # ===== Generar openid:// “estático” para VP =====
-def build_openid_vp():
+def build_openid_vp(aud: str = "openid://", nonce: str | None = None):
     state = secrets.token_urlsafe(16)
-    nonce = secrets.token_urlsafe(16)
+    nonce = nonce or secrets.token_urlsafe(16)
     post_endpoint = cfg("RESPONSE_URI") or (base_url() + "/verifier/response")
-    request_uri = (base_url()
-                   + "/request?"
-                   + urllib.parse.urlencode({
-                        "client_id": base_url(),
-                        "redirect_uri": post_endpoint,
-                        "response_type": "vp_token",
-                        "response_mode": "direct_post",
-                        "scope": "openid",
-                        "state": state,
-                        "nonce": nonce,
-                        "aud": "openid://",
-                    }))
-    openid_url = ("openid://?"
-                  + urllib.parse.urlencode({
-                        "client_id": base_url(),
-                        "redirect_uri": post_endpoint,
-                        "response_type": "vp_token",
-                        "response_mode": "direct_post",
-                        "scope": "openid",
-                        "state": state,
-                        "nonce": nonce,
-                        "request_uri": request_uri,
-                  }))
+    request_uri = (
+        base_url()
+        + "/request?"
+        + urllib.parse.urlencode(
+            {
+                "client_id": base_url(),
+                "redirect_uri": post_endpoint,
+                "response_type": "vp_token",
+                "response_mode": "direct_post",
+                "scope": "openid",
+                "state": state,
+                "nonce": nonce,
+                "aud": aud,
+            }
+        )
+    )
+    openid_url = (
+        "openid://?"
+        + urllib.parse.urlencode(
+            {
+                "client_id": base_url(),
+                "redirect_uri": post_endpoint,
+                "response_type": "vp_token",
+                "response_mode": "direct_post",
+                "scope": "openid",
+                "state": state,
+                "nonce": nonce,
+                "request_uri": request_uri,
+            }
+        )
+    )
     return {
         "openid_url": openid_url,
         "state": state,
         "nonce": nonce,
+        "aud": aud,
         "redirect_uri": post_endpoint,
         "request_uri": request_uri,
     }
@@ -145,6 +154,8 @@ async def wallet_present(request: Request):
       "holder_did": "did:jwk:...",
       "password": "default",
       "select": [0,1,2],
+      "aud": "https://verifier.example",  # opcional
+      "nonce": "xyz",                     # opcional
       "send": true,      # si true, hace POST a /verifier/response
       "auth": {          # opcional: forzar destino y estado
         "redirect_uri": "https://<verifier>/verifier/response",
@@ -157,9 +168,11 @@ async def wallet_present(request: Request):
     password = body.get("password", "default")
     select = body.get("select", [0])
     do_send = bool(body.get("send", False))
+    aud = body.get("aud", "openid://")
+    nonce = body.get("nonce")
 
     # 1) Abrimos un “openid://” de VP local (sirve para QR/depuración)
-    auth = build_openid_vp()
+    auth = build_openid_vp(aud=aud, nonce=nonce)
 
     # --- NEW: si el cliente mandó redirect_uri/state, respetarlos ---
     user_auth = (body.get("auth") or {})
@@ -184,7 +197,7 @@ async def wallet_present(request: Request):
     priv = load_or_create_holder_key()
     did_local = holder_did or holder_did_from_key(priv)
     vp_jwt, vp_payload = make_vp_jwt(
-        vc_jwts=chosen, iss_did=did_local, aud="openid://", nonce=auth["nonce"]
+        vc_jwts=chosen, iss_did=did_local, aud=aud, nonce=auth["nonce"]
     )
     pres_sub = build_presentation_submission(len(chosen))
 
@@ -213,6 +226,7 @@ async def wallet_present(request: Request):
         "openid_url": auth["openid_url"],  # útil para QR si send:false
         "state": auth["state"],
         "nonce": auth["nonce"],
+        "aud": auth.get("aud"),
         "vp_jwt": vp_jwt,
         "vp_payload": vp_payload,
         "presentation_submission": pres_sub,
