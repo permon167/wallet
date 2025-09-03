@@ -1,5 +1,6 @@
 import os
 import re
+import logging
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
@@ -11,6 +12,9 @@ from app.routers import holder, oid4vc, verifier_ebsi,  presentations
 ALLOWED_HOSTS = [h for h in os.getenv("ALLOWED_HOSTS", "*").split(",") if h]
 SERVER_BASE_URL = os.getenv("SERVER_BASE_URL", "").rstrip("/")
 SESSION_SECRET = os.getenv("SESSION_SECRET", "dev-secret")  # cambia en prod
+
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(level=LOG_LEVEL)
 
 app = FastAPI(title="SSI Wallet Backend", version="1.0")
 

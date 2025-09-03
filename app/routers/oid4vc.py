@@ -1,4 +1,6 @@
 import json
+import logging
+
 import httpx
 from fastapi import APIRouter, Request, Form
 from fastapi.responses import JSONResponse, PlainTextResponse
@@ -7,12 +9,13 @@ from urllib.parse import urlparse, parse_qs, unquote
 from app.services import holder
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 @router.post("/holder/receive-oid4vc")
 async def receive_oid4vc(request: Request):
     try:
         body = await request.json()
-        print("🔍 Oferta recibida:", json.dumps(body, indent=2))
+        logger.debug("OID4VC offer received for holder DID %s", body.get("holder_did"))
 
         offer_uri = body["credential_offer_uri"]
         holder_did = body["holder_did"]
@@ -32,7 +35,7 @@ async def receive_oid4vc(request: Request):
         pre_code = grant["pre-authorized_code"]
         credential_type = offer["credentials"][0]  # ej. "dbc2023"
 
-        print("🔐 Grant:", json.dumps(grant, indent=2))
+        logger.debug("Pre-authorized grant processed for credential type %s", credential_type)
 
         async with httpx.AsyncClient() as client:
             # === Paso 1: pedir el token con el pre-authorized_code ===
@@ -47,23 +50,18 @@ async def receive_oid4vc(request: Request):
 
             token_data = token_resp.json()
             if "access_token" not in token_data:
-                print("❌ Respuesta inesperada del token endpoint:", token_data)
+                logger.error("Unexpected response from token endpoint: %s", token_data.keys())
                 return JSONResponse(status_code=500, content=token_data)
 
             access_token = token_data["access_token"]
             nonce = token_data.get("c_nonce")
-            print("🪪 Token OK, nonce:", nonce)
+            logger.info("Token obtained; nonce present: %s", bool(nonce))
 
             # === Paso 2: construir el proof of possession para did:jwk ===
             jwt_obj = holder.build_proof_of_possession_jwk(nonce=nonce, issuer=issuer)
             proof_jwt = jwt_obj["jwt"]
 
-            print("📤 Enviando solicitud de credencial con proof JWT:")
-            print(json.dumps({
-                "format": "jwt_vc_json",
-                "credential_type": credential_type,
-                "proof": proof_jwt
-            }, indent=2))
+            logger.debug("Sending credential request for type %s", credential_type)
 
             # === Paso 2.5: obtener el credential_endpoint dinámicamente ===
             config_resp = await client.get(f"{issuer}/.well-known/openid-credential-issuer")
@@ -71,10 +69,10 @@ async def receive_oid4vc(request: Request):
 
             credential_endpoint = issuer_config.get("credential_endpoint")
             if not credential_endpoint:
-                print("❌ No se encontró el credential_endpoint en la configuración del issuer")
+                logger.error("credential_endpoint not found in issuer configuration")
                 return JSONResponse(status_code=500, content={"error": "No credential_endpoint found"})
 
-            print("📍 Endpoint de credenciales detectado:", credential_endpoint)
+            logger.info("Detected credential endpoint %s", credential_endpoint)
 
             # === Paso 3: pedir la credencial con el proof ===
             cred_resp = await client.post(
@@ -95,18 +93,16 @@ async def receive_oid4vc(request: Request):
 
             if cred_resp.status_code == 200:
                 vc = cred_resp.json()
-                print("✅ Credencial recibida:", json.dumps(vc, indent=2))
+                logger.info("Credential received for DID %s", holder_did)
 
                 # Guardar la credencial
                 result = holder.store_credential(holder_did, vc, password)
                 return {"message": "Credencial recibida y guardada", "result": result}
             else:
-                print("❌ Error al pedir la credencial:")
-                print("🔸 Código:", cred_resp.status_code)
-                print("🔸 Respuesta:", cred_resp.text)
+                logger.error("Error requesting credential: status %s", cred_resp.status_code)
                 return JSONResponse(status_code=500, content={"error": "Credencial no recibida"})
 
-    except Exception as e:
-        print("❌ Error general:", str(e))
-        return JSONResponse(status_code=500, content={"error": str(e)})
+    except Exception:
+        logger.exception("General error in OID4VC flow")
+        return JSONResponse(status_code=500, content={"error": "Internal server error"})
 
