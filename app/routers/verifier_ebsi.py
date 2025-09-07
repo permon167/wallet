@@ -53,7 +53,7 @@ LAST_RESULT: Dict[str, Any] = {}
 # -----------------------------
 # Well-known OIDC + JWKS + token stub
 # -----------------------------
-@router.get("/.well-known/openid-configuration")
+@router.get("/.well-known/openid-configuration", summary="OIDC discovery document for this verifier")
 async def well_known(request: Request):
     base = base_url(request)
     return JSONResponse({
@@ -71,11 +71,11 @@ async def well_known(request: Request):
         "request_uri_parameter_supported": True
     })
 
-@router.get("/jwks.json")
+@router.get("/jwks.json", summary="JWKS with ES256 public key used to sign Request Objects")
 async def jwks():
     return JSONResponse(jwks_fn())
 
-@router.post("/token")
+@router.post("/token", summary="Token stub (for metadata conformance only)")
 async def token_stub():
     # No emitimos tokens reales; sólo para conformidad del metadata
     return JSONResponse(
@@ -115,7 +115,7 @@ def _parse_wallet_aud_hint(q: Dict[str, str]) -> str:
 # -----------------------------
 # Authorization Endpoint (usado por EBSI) - ¡NO TOCAR!
 # -----------------------------
-@router.get("/authorize")
+@router.get("/authorize", summary="Build OpenID request and redirect to openid:// (mobile) or conformance wallet")
 async def authorize(request: Request):
     """
     Compatibilidad EBSI:
@@ -180,7 +180,7 @@ async def authorize(request: Request):
 # -----------------------------
 # NUEVO: endpoint JSON sólo para el frontend (no usado por EBSI)
 # -----------------------------
-@router.get("/authorize/openid")
+@router.get("/authorize/openid", summary="Return {openid_url} JSON (useful for QR/desktop)")
 async def authorize_openid(request: Request):
     """
     Genera la misma Authorization Request que /authorize, pero devuelve JSON:
@@ -234,7 +234,7 @@ async def authorize_openid(request: Request):
 # -----------------------------
 # Request Object (JAR firmado)
 # -----------------------------
-@router.get("/request")
+@router.get("/request", summary="Return a signed Request Object (JAR, ES256)")
 async def get_request_object(request: Request):
     """
     Devuelve el JAR (JWS compacto) con JOSE header estricto:
@@ -360,7 +360,7 @@ def _index_from_descriptor_path(path: str) -> Optional[int]:
             return int(m.group(1))
     return None
 
-@router.post("/verifier/response")
+@router.post("/verifier/response", summary="direct_post receiver for id_token / vp_token; performs final redirect")
 async def verifier_response(request: Request):
     """
     Recibe 'direct_post' desde la wallet:
@@ -443,15 +443,15 @@ async def verifier_response(request: Request):
 # -----------------------------
 # Utilidades de depuración
 # -----------------------------
-@router.get("/verifier/ready")
+@router.get("/verifier/ready", summary="Simple readiness text for manual checks")
 async def verifier_ready():
     return PlainTextResponse("Verifier ready: waiting for direct_post at /verifier/response")
 
-@router.get("/verifier/state/{state}")
+@router.get("/verifier/state/{state}", summary="Inspect saved state for a pending request")
 async def peek_state(state: str):
     data = STATE_STORE.get(state)
     return JSONResponse({"ok": bool(data), "data": data})
 
-@router.get("/verifier/last-result")
+@router.get("/verifier/last-result", summary="Return last seen direct_post result snapshot")
 async def last_result():
     return JSONResponse(LAST_RESULT or {"info": "no result yet"})

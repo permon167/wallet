@@ -59,7 +59,7 @@ class IDProofIn(BaseModel):
 
 # ========= Endpoints de prepare =========
 
-@router.get("/bridge/prepare-vp", response_model=PrepareResponse)
+@router.get("/bridge/prepare-vp", response_model=PrepareResponse, summary="Pre-flight verifier checks for VP flow (returns state/nonce)")
 async def prepare_vp(verifier_base: str = Query(...), holder_did: str = Query(...)):
     state = _tok(12)
     nonce = _tok(9)
@@ -110,7 +110,7 @@ async def prepare_vp(verifier_base: str = Query(...), holder_did: str = Query(..
 
     return {"state": state, "nonce": nonce}
 
-@router.get("/bridge/prepare-id", response_model=PrepareResponse)
+@router.get("/bridge/prepare-id", response_model=PrepareResponse, summary="Pre-flight verifier checks for ID flow (returns state/nonce)")
 async def prepare_id(verifier_base: str = Query(...), holder_did: str = Query(...)):
     state = _tok(12)
     nonce = _tok(9)
@@ -163,7 +163,7 @@ async def prepare_id(verifier_base: str = Query(...), holder_did: str = Query(..
 
 # ========= Endpoint de id-proof =========
 
-@router.post("/holder/id-proof")
+@router.post("/holder/id-proof", summary="Create and send a simple ES256 id_token to the verifier via direct_post")
 async def id_proof(body: IDProofIn):
     try:
         private_key = load_holder_private_key()

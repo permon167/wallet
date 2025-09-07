@@ -9,13 +9,13 @@ from app.services import holder
 
 router = APIRouter()
 
-@router.post("/create-did-jwk")
+@router.post("/create-did-jwk", summary="Create a did:jwk identity and persist keys locally")
 async def create_did_jwk():
     identity = holder.create_did_jwk()
     return {"message": "Identidad JWK creada", "did": identity["did"]}
 
 
-@router.post("/credentials")
+@router.post("/credentials", summary="List all stored credentials for a holder")
 async def get_all_credentials(request: Request):
     try:
         body = await request.json()
@@ -30,7 +30,7 @@ async def get_all_credentials(request: Request):
         return JSONResponse(status_code=400, content={"error": str(e)})
 
 
-@router.post("/delete-credential")
+@router.post("/delete-credential", summary="Delete one credential by index")
 async def delete_credential(request: Request):
     try:
         body = await request.json()
@@ -56,7 +56,7 @@ async def delete_credential(request: Request):
 
 
 
-@router.post("/decode-credential")
+@router.post("/decode-credential", summary="Decode a stored VC-JWT (no signature verification)")
 async def decode_credential(request: Request):
     try:
         body = await request.json()
@@ -73,7 +73,7 @@ async def decode_credential(request: Request):
 
 
 
-@router.post("/receive-oid4vc")
+@router.post("/receive-oid4vc", summary="Redeem an OID4VCI credential_offer_uri and store the VC")
 async def receive_oid4vc(request: Request):
     try:
         body = await request.json()

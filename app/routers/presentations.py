@@ -136,7 +136,7 @@ def build_presentation_submission(count: int):
 
 # ===== Endpoints =====
 
-@router.post("/wallet/present")
+@router.post("/wallet/present", summary="Build a VP-JWT from selected stored VCs and optionally send it")
 async def wallet_present(request: Request):
     """
     Body:
@@ -219,4 +219,3 @@ async def wallet_present(request: Request):
         "sent": sent,
         "post_status": post_status
     })
-
