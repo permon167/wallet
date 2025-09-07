@@ -147,40 +147,6 @@ def load_credentials(holder_did: str, password: str) -> list:
     return json.loads(decrypted)
 
 
-def generate_presentation_jwt(holder_did: str, password: str, index: int = 0, aud: str = "", nonce: str = "") -> str:
-    creds = load_credentials(holder_did, password)
-    if index >= len(creds):
-        raise ValueError("Índice de credencial inválido")
-    
-    vc_jwt = creds[index]  # Asumimos que ya está en formato JWT
-
-    with open("data/holder_jwk_private.pem", "rb") as key_file:
-        private_key = load_pem_private_key(key_file.read(), password=None)
-
-    now = int(time.time())
-    payload = {
-        "iss": holder_did,
-        "sub": holder_did,
-        "vp": {
-            "@context": ["https://www.w3.org/2018/credentials/v1"],
-            "type": ["VerifiablePresentation"],
-            "verifiableCredential": [vc_jwt]
-        },
-        "aud": aud or "https://verifier.example.org",  # temporal
-        "nonce": nonce or str(uuid.uuid4()),
-        "iat": now,
-        "exp": now + 600
-    }
-
-    headers = {
-        "alg": "ES256",
-        "kid": holder_did,
-        "typ": "JWT"
-    }
-
-    return jwt.encode(payload, private_key, algorithm="ES256", headers=headers)
-
-
 
 def decode_jwt_credential(holder_did: str, password: str, index: int = 0) -> dict:
     creds = load_credentials(holder_did, password)
