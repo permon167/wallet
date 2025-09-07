@@ -6,12 +6,14 @@ import uuid
 from datetime import datetime
 
 import jwt  # PyJWT
+import httpx
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
+import httpx
 
 
 # === Utilidades de cifrado local ===========================================
@@ -99,16 +101,82 @@ def build_proof_of_possession_jwk(nonce: str, issuer: str) -> dict:
     }
 
     token = jwt.encode(
-	payload,
-    	private_key,
-    	algorithm="ES256",
-    	headers={
-        	"kid": holder_did,
-        	"typ": "openid4vci-proof+jwt"
-    	}
+        payload,
+        private_key,
+        algorithm="ES256",
+        headers={
+                "kid": holder_did,
+                "typ": "openid4vci-proof+jwt"
+        }
     )
 
     return {"jwt": token}
+
+
+# === DIDComm: Envío de petición firmada al emisor ===========================
+
+async def send_signed_request_to_issuer(issuer_did: str) -> dict:
+    """Envía una petición DIDComm firmada al emisor y devuelve su respuesta.
+
+    Parameters
+    ----------
+    issuer_did: str
+        URL o DID del emisor al que se enviará la solicitud.
+
+    Returns
+    -------
+    dict
+        Respuesta del emisor o mensaje de error para mostrar en el frontend.
+    """
+
+    # 1. Cargar la identidad del holder
+    try:
+        with open("data/holder_jwk_identity.json", "r") as f:
+            identity = json.load(f)
+        holder_did = identity["did"]
+    except FileNotFoundError:
+        return {"error": "Identidad del holder no encontrada"}
+    except Exception as e:  # noqa: BLE001 - queremos mensajes claros para el frontend
+        return {"error": f"Error leyendo identidad del holder: {e}"}
+
+    # 2. Construir el mensaje DIDComm
+    message = {
+        "id": str(uuid.uuid4()),
+        "type": "https://didcomm.org/issue-credential/3.0/request",
+        "from": holder_did,
+        "to": issuer_did,
+        "created_time": int(time.time()),
+        "body": {"msg": "Solicitud de credencial"},
+    }
+
+    # 3. Firmar el mensaje
+    try:
+        with open("data/holder_jwk_private.pem", "rb") as key_file:
+            private_key = load_pem_private_key(key_file.read(), password=None)
+        signed_message = jwt.encode(
+            message, private_key, algorithm="ES256", headers={"kid": holder_did}
+        )
+    except Exception as e:  # noqa: BLE001
+        return {"error": f"No se pudo firmar la solicitud: {e}"}
+
+    # 4. Enviar al emisor
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.post(issuer_did, json={"message": signed_message})
+            response.raise_for_status()
+            try:
+                return response.json()
+            except ValueError:
+                return {"status": "ok", "response": response.text}
+    except httpx.TimeoutException:
+        return {"error": "Tiempo de espera agotado al contactar al emisor"}
+    except httpx.HTTPStatusError as e:
+        return {
+            "error": f"Error HTTP {e.response.status_code} desde el emisor",
+            "details": e.response.text,
+        }
+    except httpx.RequestError as e:
+        return {"error": f"Error de conexión al emisor: {e}"}
 
 
 # === Almacenamiento de credenciales encriptadas ============================
@@ -164,3 +232,41 @@ def decode_jwt_credential(holder_did: str, password: str, index: int = 0) -> dic
         "expiration": decoded.get("exp"),
         "raw": decoded
     }
+
+
+# === DIDComm signed request ==================================================
+
+async def send_signed_request_to_issuer(issuer_did: str) -> dict:
+    """Envía una petición DIDComm firmada al emisor y devuelve su respuesta.
+
+    El parámetro ``issuer_did`` se utiliza como URL del emisor. El mensaje
+    contiene un JWT firmado con la clave del holder.
+    """
+
+    try:
+        with open("data/holder_jwk_private.pem", "rb") as key_file:
+            private_key = load_pem_private_key(key_file.read(), password=None)
+
+        with open("data/holder_jwk_identity.json", "r") as f:
+            identity = json.load(f)
+
+        holder_did = identity["did"]
+        now = int(time.time())
+        payload = {
+            "iss": holder_did,
+            "sub": issuer_did,
+            "iat": now,
+            "exp": now + 600,
+            "msg": "signed-request"
+        }
+
+        token = jwt.encode(payload, private_key, algorithm="ES256", headers={"kid": holder_did})
+
+        async with httpx.AsyncClient(timeout=10) as client:
+            response = await client.post(issuer_did, json={"jwt": token})
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPError as e:
+        return {"error": f"HTTP error: {str(e)}"}
+    except Exception as e:
+        return {"error": str(e)}
