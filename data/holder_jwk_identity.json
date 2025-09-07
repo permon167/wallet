@@ -1,0 +1,9 @@
+{
+  "did": "did:jwk:eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjhuTG5VQTFfZkoyaHI4Mmt3MWQzcTBPRlhJaXdJN042TmVNeEdPV1VjSjAiLCJ5IjoiVTlJVFlHTWJ2XzhtMGRSTTdTU09tQlVBVzdXZHNRWWxCYjd1bG9TUHI3OCJ9",
+  "jwk": {
+    "kty": "EC",
+    "crv": "P-256",
+    "x": "8nLnUA1_fJ2hr82kw1d3q0OFXIiwI7N6NeMxGOWUcJ0",
+    "y": "U9ITYGMbv_8m0dRM7SSOmBUAW7WdsQYlBb7uloSPr78"
+  }
+}
